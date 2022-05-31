@@ -1,7 +1,7 @@
 import type { NextPage } from "next";
 import { useRouter } from "next/router";
 import Image from "next/image";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { GiHumanTarget } from "react-icons/gi";
 import { FaMapMarkerAlt } from "react-icons/fa";
@@ -106,16 +106,44 @@ const Map = () => {
   return <></>;
 };
 
-// export async function getServerSideProps() {
-//   const json = await fetch("https://valorant-api.com/v1/agents").then((r) =>
-//     r.json()
-//   );
-//   console.log(json);
+export async function getServerSideProps() {
+  let agents = [];
+  let maps = [];
 
-//   return {};
-// }
+  let json;
 
-const User: NextPage = () => {
+  json = await fetch("https://valorant-api.com/v1/agents").then((r) =>
+    r.json()
+  );
+  if (json.status === 200) {
+    agents = json.data
+      .filter((data) => {
+        return data.isPlayableCharacter;
+      })
+      .map((data) => {
+        return { name: data.displayName, icon: data.displayIcon };
+      });
+  }
+
+  json = await fetch("https://valorant-api.com/v1/maps").then((r) => r.json());
+  if (json.status === 200) {
+    maps = json.data.map((data) => {
+      return { name: data.displayName, icon: data.listViewIcon };
+    });
+  }
+
+  return {
+    props: {
+      agents: agents,
+      maps: maps,
+    },
+  };
+}
+
+const User: NextPage = ({ agents, maps }: {}) => {
+  const [viewAllAgent, setViewAllAgent] = useState(false);
+  const [viewAllMap, setViewAllMap] = useState(false);
+
   const router = useRouter();
   const { user } = router.query;
 
@@ -135,15 +163,17 @@ const User: NextPage = () => {
       <main className="m-2">
         <div className="flex flex-col">
           <div className="flex flex-row items-center mb-2">
-            <div className="relative w-20 h-20 mr-5 rounded bg-gray-800">
+            <div className="relative w-16 h-16 mr-2 rounded-full shadow">
               <Image
                 src={
                   "https://media.valorant-api.com/playercards/33c1f011-4eca-068c-9751-f68c788b2eee/displayicon.png"
                 }
                 layout="fill"
                 objectFit="cover"
+                className="rounded-full"
               />
             </div>
+
             <div className="font-bold text-2xl">
               {name}{" "}
               <span className="px-2 py-1 rounded bg-gray-800">#{tag}</span>
@@ -182,7 +212,34 @@ const User: NextPage = () => {
                   </div>
                 </div>
 
-                <Agent />
+                {/* <Agent /> */}
+                <div>
+                  {agents
+                    .slice(0, viewAllAgent ? agents.length : 3)
+                    .map((agent) => (
+                      <>
+                        <div className="flex flex-row items-center justify-start mb-2">
+                          <div className="relative w-8 h-8 mr-3 rounded bg-gray-800">
+                            <Image
+                              src={agent.icon}
+                              layout="fill"
+                              objectFit="cover"
+                            />
+                          </div>
+                          <div className="text-gray-300 font-bold text-xs">
+                            {agent.name}
+                          </div>
+                        </div>
+                      </>
+                    ))}
+
+                  <button
+                    className="w-full mt-2 py-2 rounded bg-gray-700 text-center text-xs"
+                    onClick={() => setViewAllAgent(!viewAllAgent)}
+                  >
+                    {viewAllAgent ? "隠す" : "全て表示"}
+                  </button>
+                </div>
               </div>
 
               <div className="p-5 rounded bg-gray-800">
@@ -193,7 +250,34 @@ const User: NextPage = () => {
                   </div>
                 </div>
 
-                <Map />
+                {/* <Map /> */}
+                <div>
+                  {maps.slice(0, viewAllMap ? maps.length : 3).map((map) => (
+                    <>
+                      <div className="flex flex-row items-center justify-start mb-2">
+                        <div className="relative w-full h-10 rounded bg-gray-800">
+                          <Image
+                            src={map.icon}
+                            layout="fill"
+                            objectFit="cover"
+                          />
+                          <div className="relative w-full h-full bg-black/70">
+                            <div className="relative top-1/2 -translate-y-1/2 ml-2 text-gray-300 font-bold text-xs">
+                              {map.name}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ))}
+
+                  <button
+                    className="w-full mt-2 py-2 rounded bg-gray-700 text-center text-xs"
+                    onClick={() => setViewAllMap(!viewAllMap)}
+                  >
+                    {viewAllMap ? "隠す" : "全て表示"}
+                  </button>
+                </div>
               </div>
             </div>
 
