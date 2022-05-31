@@ -9,6 +9,7 @@ import { VscGraph } from "react-icons/vsc";
 import { AiFillThunderbolt } from "react-icons/ai";
 
 import AccuracySvg from "@/components/svg/accuracy.svg";
+import MatchHistoryRow from "@/components/MatchHistoryRow";
 
 const Stats = () => {
   return (
@@ -196,14 +197,21 @@ const User: NextPage = () => {
               </div>
             </div>
 
-            <div className="p-5 rounded bg-gray-800 mb-2 w-full">
-              <select className="mr-2 px-2 py-1 rounded bg-gray-700 font-bold">
-                <option>Unrate</option>
-              </select>
+            <div className="p-5 rounded bg-gray-800 w-full">
+              <div className="mb-5">
+                <select className="mr-2 px-2 py-1 rounded bg-gray-700 font-bold">
+                  <option>Unrate</option>
+                </select>
 
-              <select className="px-2 py-1 rounded bg-gray-700 font-bold">
-                <option>EP4 Act3</option>
-              </select>
+                <select className="px-2 py-1 rounded bg-gray-700 font-bold">
+                  <option>EP4 Act3</option>
+                </select>
+              </div>
+
+              <MatchHistoryRow />
+              <MatchHistoryRow />
+              <MatchHistoryRow />
+              <MatchHistoryRow />
             </div>
           </div>
         </div>
