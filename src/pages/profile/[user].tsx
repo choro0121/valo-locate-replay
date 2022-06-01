@@ -218,7 +218,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
                 name: "",
                 icon: "",
               },
-              team: "",
+              team: "Blue",
               kills: 0,
               deaths: 0,
               assists: 0,
