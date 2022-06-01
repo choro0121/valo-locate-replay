@@ -1,45 +1,77 @@
 import { useRouter } from "next/router";
-import { useEffect } from "react";
-import { BsFillStarFill } from "react-icons/bs";
+import Image from "next/image";
 
-const MatchHistoryRow = ({ matchId }: { matchId: string }) => {
+import { BsFillStarFill } from "react-icons/bs";
+import { Match } from "@/types/types";
+
+enum MATCH_RESULT {
+  Win,
+  Lose,
+  Draw,
+}
+const MatchHistoryRow = ({ match }: { match: Match }) => {
   const router = useRouter();
 
-  let map = "スプリット";
-  let gemeStartMillis = 0;
-  let character = "フェイド";
-  let kills = 19;
-  let deaths = 9;
-  let assists = 7;
-  let kd = Math.round((kills / deaths) * 10) / 10;
-  let adr = 184;
-  let acs = 288;
-  let hs = 22;
-  let wins = [13, 5];
-  let ranking = 1;
-
-  useEffect(() => {}, [matchId]);
+  const datetime = new Date(match.time * 1000);
+  const kd = Math.round((match.player.kills / match.player.deaths) * 10) / 10;
+  const hs =
+    Math.round(
+      (match.player.headshots /
+        (match.player.headshots +
+          match.player.bodyshots +
+          match.player.legshots)) *
+        1000
+    ) / 10;
+  const ranking = 1;
+  const result: MATCH_RESULT = (function () {
+    if (match.blue == match.red) {
+      return MATCH_RESULT.Draw;
+    }
+    if (match.player.team === "Blue") {
+      if (match.blue > match.red) {
+        return MATCH_RESULT.Win;
+      }
+    } else {
+      if (match.blue < match.red) {
+        return MATCH_RESULT.Win;
+      }
+    }
+    return MATCH_RESULT.Lose;
+  })();
 
   return (
     <>
       <div
-        className="flex flex-row justify-between items-center py-4 border-t hover:bg-gray-700 border-t-gray-900/50 border-l-2 border-l-red-500 hover:cursor-pointer"
+        className={
+          "flex flex-row justify-between items-center py-4 border-t hover:bg-gray-700 border-t-gray-900/50 border-l-2 hover:cursor-pointer " +
+          (result === MATCH_RESULT.Win
+            ? "border-l-red-500"
+            : result === MATCH_RESULT.Lose
+            ? "border-l-green-300"
+            : "border-l-yellow-500")
+        }
         onClick={() => {
-          router.push("/match/hogehoge");
+          router.push(`/match/${match.matchid}`);
         }}
       >
         <div className="flex flex-row items-center mr-4">
-          <div className="mr-2">
-            エージェント
-            <br />
-            アイコン
+          <div className="relative w-16 h-16 mx-4">
+            <Image
+              src={match.player.agent.icon}
+              layout="fill"
+              objectFit="cover"
+              className="rounded-full"
+            />
           </div>
 
           <div className="flex flex-col items-center">
             <div className="px-2 py-0.5 rounded-full text-gray-400 bg-gray-700/50 text-xs">
-              02:46 PM
+              {datetime.getFullYear()}/{datetime.getMonth() + 1}/
+              {datetime.getDay()} {datetime.getHours()}:{datetime.getMinutes()}
             </div>
-            <div className="mt-1 text-gray-400 font-bold text-xs">{map}</div>
+            <div className="mt-1 text-gray-400 font-bold text-xs">
+              {match.map}
+            </div>
           </div>
         </div>
 
@@ -48,27 +80,27 @@ const MatchHistoryRow = ({ matchId }: { matchId: string }) => {
             <span
               className={
                 "mr-2 " +
-                (wins[0] == wins[1]
+                (match.red == match.blue
                   ? "text-yellow-500"
-                  : wins[0] > wins[1]
+                  : match.red > match.blue
                   ? "text-green-300"
                   : "text-red-500")
               }
             >
-              {wins[0]}
+              {match.red}
             </span>
             -
             <span
               className={
                 "ml-2 " +
-                (wins[0] == wins[1]
+                (match.red == match.blue
                   ? "text-yellow-500"
-                  : wins[0] < wins[1]
+                  : match.red < match.blue
                   ? "text-green-300"
                   : "text-red-500")
               }
             >
-              {wins[1]}
+              {match.blue}
             </span>
           </div>
 
@@ -93,7 +125,7 @@ const MatchHistoryRow = ({ matchId }: { matchId: string }) => {
           <div className="flex flex-col items-end mr-4">
             <div className="text-gray-400 text-xs">K/D/A</div>
             <div className="font-bold text-lg">
-              {kills}/{deaths}/{assists}
+              {match.player.kills}/{match.player.deaths}/{match.player.assists}
             </div>
           </div>
 
@@ -116,12 +148,12 @@ const MatchHistoryRow = ({ matchId }: { matchId: string }) => {
 
           <div className="flex flex-col items-end mr-4">
             <div className="text-gray-400 text-xs">ADR</div>
-            <div className="font-bold text-lg">{adr}</div>
+            <div className="font-bold text-lg">{match.player.adr}</div>
           </div>
 
           <div className="flex flex-col items-end mr-4">
             <div className="text-gray-400 text-xs">ACS</div>
-            <div className="font-bold text-lg">{acs}</div>
+            <div className="font-bold text-lg">{match.player.acs}</div>
           </div>
         </div>
       </div>

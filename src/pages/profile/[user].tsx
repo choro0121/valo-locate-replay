@@ -1,5 +1,4 @@
-import type { NextPage } from "next";
-import { useRouter } from "next/router";
+import type { GetServerSideProps, GetServerSidePropsContext } from "next";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 
@@ -7,6 +6,8 @@ import { GiHumanTarget } from "react-icons/gi";
 import { FaMapMarkerAlt } from "react-icons/fa";
 import { VscGraph } from "react-icons/vsc";
 import { AiFillThunderbolt } from "react-icons/ai";
+
+import { Asset, User, MMR, Match } from "@/types/types";
 
 import AccuracySvg from "@/components/svg/accuracy.svg";
 import MatchHistoryRow from "@/components/MatchHistoryRow";
@@ -106,57 +107,191 @@ const Map = () => {
   return <></>;
 };
 
-export async function getServerSideProps() {
-  let agents = [];
-  let maps = [];
+type Props = {
+  user: User;
+  mmr: MMR;
+  matches: Match[];
+  agents: Asset[];
+  maps: Asset[];
+};
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const user = context.query.user;
+
+  const props: Props = {
+    user: {
+      name: "",
+      tag: "",
+      card: "",
+      puuid: "",
+    },
+    mmr: {
+      rank: "",
+      rp: 0,
+    },
+    matches: [],
+    agents: [],
+    maps: [],
+  };
 
   let json;
 
-  json = await fetch("https://valorant-api.com/v1/agents").then((r) =>
-    r.json()
-  );
-  if (json.status === 200) {
-    agents = json.data
-      .filter((data) => {
-        return data.isPlayableCharacter;
-      })
-      .map((data) => {
-        return { name: data.displayName, icon: data.displayIcon };
-      });
+  if (typeof user === "string") {
+    const words = user.split("-");
+
+    if (words.length > 1) {
+      props.user.name = words[0];
+      props.user.tag = words[1];
+
+      json = await fetch(
+        `https://api.henrikdev.xyz/valorant/v1/account/${props.user.name}/${props.user.tag}`
+      ).then((r) => r.json());
+      if (json.status === 200) {
+        props.user.puuid = json.data.puuid;
+        props.user.card = json.data.card.small;
+      }
+    }
   }
 
-  json = await fetch("https://valorant-api.com/v1/maps").then((r) => r.json());
-  if (json.status === 200) {
-    maps = json.data.map((data) => {
-      return { name: data.displayName, icon: data.listViewIcon };
-    });
+  if (props.user.puuid !== "") {
+    json = await fetch(
+      `https://api.henrikdev.xyz/valorant/v1/by-puuid/mmr/ap/${props.user.puuid}`
+    ).then((r) => r.json());
+    if (json.status === 200) {
+      props.mmr.rank = json.data.currenttierpatched;
+      props.mmr.rp = json.data.ranking_in_tier;
+    }
+
+    json = await fetch(
+      `https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/ap/${props.user.puuid}`
+    ).then((r) => r.json());
+    if (json.status === 200) {
+      props.matches = json.data.map(
+        (data: {
+          metadata: {
+            map: string;
+            game_start: number;
+            rounds_played: number;
+            mode: string;
+            matchid: string;
+          };
+          players: {
+            all_players: Array<{
+              puuid: string;
+              team: "Blue" | "Red";
+              character: string;
+              assets: {
+                agent: {
+                  small: string;
+                };
+              };
+              stats: {
+                score: number;
+                kills: number;
+                deaths: number;
+                assists: number;
+                bodyshots: number;
+                headshots: number;
+                legshots: number;
+              };
+              damage_made: number;
+            }>;
+          };
+          teams: {
+            red: { rounds_won: number };
+            blue: { rounds_won: number };
+          };
+          displayIcon: string;
+        }) => {
+          const match: Match = {
+            time: data.metadata.game_start,
+            matchid: data.metadata.matchid,
+            map: data.metadata.map,
+            mode: data.metadata.mode,
+
+            rounds: data.metadata.rounds_played,
+            red: data.teams.red.rounds_won,
+            blue: data.teams.blue.rounds_won,
+
+            player: {
+              agent: {
+                name: "",
+                icon: "",
+              },
+              team: "",
+              kills: 0,
+              deaths: 0,
+              assists: 0,
+              bodyshots: 0,
+              headshots: 0,
+              legshots: 0,
+              acs: 0,
+              adr: 0,
+            },
+          };
+
+          for (let i = 0; i < data.players.all_players.length; i++) {
+            if (data.players.all_players[i].puuid === props.user.puuid) {
+              match.player.agent.name = data.players.all_players[i].character;
+              match.player.agent.icon =
+                data.players.all_players[i].assets.agent.small;
+              match.player.team = data.players.all_players[i].team;
+              match.player.kills = data.players.all_players[i].stats.kills;
+              match.player.deaths = data.players.all_players[i].stats.deaths;
+              match.player.assists = data.players.all_players[i].stats.assists;
+              match.player.bodyshots =
+                data.players.all_players[i].stats.bodyshots;
+              match.player.headshots =
+                data.players.all_players[i].stats.headshots;
+              match.player.legshots =
+                data.players.all_players[i].stats.legshots;
+              match.player.acs = Math.round(
+                data.players.all_players[i].stats.score / match.rounds
+              );
+              match.player.adr = Math.round(
+                data.players.all_players[i].damage_made / match.rounds
+              );
+
+              break;
+            }
+          }
+
+          return match;
+        }
+      );
+    }
+
+    json = await fetch(
+      "https://valorant-api.com/v1/agents?isPlayableCharacter=true"
+    ).then((r) => r.json());
+    if (json.status === 200) {
+      props.agents = json.data.map(
+        (data: { displayName: string; displayIcon: string }) => {
+          return { name: data.displayName, icon: data.displayIcon };
+        }
+      );
+    }
+
+    json = await fetch("https://valorant-api.com/v1/maps").then((r) =>
+      r.json()
+    );
+    if (json.status === 200) {
+      props.maps = json.data.map(
+        (data: { displayName: string; listViewIcon: string }) => {
+          return { name: data.displayName, icon: data.listViewIcon };
+        }
+      );
+    }
   }
 
   return {
-    props: {
-      agents: agents,
-      maps: maps,
-    },
+    props,
   };
-}
+};
 
-const User: NextPage = ({ agents, maps }: {}) => {
+const UserPage = (props: Props) => {
   const [viewAllAgent, setViewAllAgent] = useState(false);
   const [viewAllMap, setViewAllMap] = useState(false);
-
-  const router = useRouter();
-  const { user } = router.query;
-
-  let name;
-  let tag;
-
-  if (typeof user === "string") {
-    const words = user.split("-");
-    if (words.length > 1) {
-      name = words[0];
-      tag = words[1];
-    }
-  }
 
   return (
     <>
@@ -165,9 +300,7 @@ const User: NextPage = ({ agents, maps }: {}) => {
           <div className="flex flex-row items-center mb-2">
             <div className="relative w-16 h-16 mr-2 rounded-full shadow">
               <Image
-                src={
-                  "https://media.valorant-api.com/playercards/33c1f011-4eca-068c-9751-f68c788b2eee/displayicon.png"
-                }
+                src={props.user.card}
                 layout="fill"
                 objectFit="cover"
                 className="rounded-full"
@@ -175,8 +308,10 @@ const User: NextPage = ({ agents, maps }: {}) => {
             </div>
 
             <div className="font-bold text-2xl">
-              {name}{" "}
-              <span className="px-2 py-1 rounded bg-gray-800">#{tag}</span>
+              {props.user.name}{" "}
+              <span className="px-2 py-1 rounded bg-gray-800">
+                #{props.user.tag}
+              </span>
             </div>
           </div>
 
@@ -214,8 +349,8 @@ const User: NextPage = ({ agents, maps }: {}) => {
 
                 {/* <Agent /> */}
                 <div>
-                  {agents
-                    .slice(0, viewAllAgent ? agents.length : 3)
+                  {props.agents
+                    .slice(0, viewAllAgent ? props.agents.length : 3)
                     .map((agent) => (
                       <>
                         <div className="flex flex-row items-center justify-start mb-2">
@@ -226,7 +361,7 @@ const User: NextPage = ({ agents, maps }: {}) => {
                               objectFit="cover"
                             />
                           </div>
-                          <div className="text-gray-300 font-bold text-xs">
+                          <div className="text-gray-300 font-bold text-sm">
                             {agent.name}
                           </div>
                         </div>
@@ -234,7 +369,7 @@ const User: NextPage = ({ agents, maps }: {}) => {
                     ))}
 
                   <button
-                    className="w-full mt-2 py-2 rounded bg-gray-700 text-center text-xs"
+                    className="w-full mt-2 py-2 rounded bg-gray-700 text-center text-sm"
                     onClick={() => setViewAllAgent(!viewAllAgent)}
                   >
                     {viewAllAgent ? "隠す" : "全て表示"}
@@ -252,27 +387,29 @@ const User: NextPage = ({ agents, maps }: {}) => {
 
                 {/* <Map /> */}
                 <div>
-                  {maps.slice(0, viewAllMap ? maps.length : 3).map((map) => (
-                    <>
-                      <div className="flex flex-row items-center justify-start mb-2">
-                        <div className="relative w-full h-10 rounded bg-gray-800">
-                          <Image
-                            src={map.icon}
-                            layout="fill"
-                            objectFit="cover"
-                          />
-                          <div className="relative w-full h-full bg-black/70">
-                            <div className="relative top-1/2 -translate-y-1/2 ml-2 text-gray-300 font-bold text-xs">
-                              {map.name}
+                  {props.maps
+                    .slice(0, viewAllMap ? props.maps.length : 3)
+                    .map((map) => (
+                      <>
+                        <div className="flex flex-row items-center justify-start mb-2">
+                          <div className="relative w-full h-10 rounded bg-gray-800">
+                            <Image
+                              src={map.icon}
+                              layout="fill"
+                              objectFit="cover"
+                            />
+                            <div className="relative w-full h-full bg-black/70">
+                              <div className="relative top-1/2 -translate-y-1/2 ml-2 text-gray-300 font-bold text-sm">
+                                {map.name}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </>
-                  ))}
+                      </>
+                    ))}
 
                   <button
-                    className="w-full mt-2 py-2 rounded bg-gray-700 text-center text-xs"
+                    className="w-full mt-2 py-2 rounded bg-gray-700 text-center text-sm"
                     onClick={() => setViewAllMap(!viewAllMap)}
                   >
                     {viewAllMap ? "隠す" : "全て表示"}
@@ -292,10 +429,11 @@ const User: NextPage = ({ agents, maps }: {}) => {
                 </select>
               </div>
 
-              <MatchHistoryRow />
-              <MatchHistoryRow />
-              <MatchHistoryRow />
-              <MatchHistoryRow />
+              {props.matches.map((match, index) => (
+                <>
+                  <MatchHistoryRow key={index} match={match} />
+                </>
+              ))}
             </div>
           </div>
         </div>
@@ -304,4 +442,4 @@ const User: NextPage = ({ agents, maps }: {}) => {
   );
 };
 
-export default User;
+export default UserPage;
